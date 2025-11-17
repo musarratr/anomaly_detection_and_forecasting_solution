@@ -1,4 +1,4 @@
-# Cefalo Oxygen Anomaly & Forecasting
+# Oxygen Anomaly & Forecasting
 
 End-to-end anomaly detection + forecasting solution for minute-level oxygen sensor data across multiple customers.
 
