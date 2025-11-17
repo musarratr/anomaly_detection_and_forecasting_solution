@@ -156,6 +156,9 @@ data/raw/
 data/interim/
 data/processed/
 
+# Model Files
+models/
+
 # Allow README or sample files to be tracked
 !data/.gitkeep
 !data/README.md

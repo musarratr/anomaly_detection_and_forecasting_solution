@@ -31,6 +31,8 @@ class AnomalyConfig:
     spike_zscore_threshold: float = 4.0
     noise_window_minutes: int = 30
     noise_std_multiplier: float = 2.0
+    # NEW: training-only hyperparameter (used in train_pipeline.py)
+    severity_quantile_for_training_cutoff: float = 0.99
 
 
 class OxygenAnomalyDetector:
