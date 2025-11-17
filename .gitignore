@@ -178,7 +178,7 @@ data/processed/
 *.bz2
 
 # Models & experiment artifacts
-models/
+# models/ 
 checkpoints/
 artifacts/
 mlruns/
