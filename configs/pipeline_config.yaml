@@ -1,0 +1,36 @@
+# configs/pipeline_config.yaml
+
+data:
+  raw_path: "data/oxygen.csv"
+  processed_path: "data/oxygen_processed_full.csv"
+  time_col: "time"
+  sensor_id_col: "sensor_id"
+  value_col: "Oxygen[%sat]"   # or "oxygen" if that's what you used
+  tz: null                    # e.g. "UTC" if you want to localise
+
+anomaly:
+  rolling_window_minutes: 60
+  point_zscore_threshold: 3.0
+  collective_window_minutes: 60
+  collective_point_threshold: 0.7
+  stuck_window_minutes: 120
+  stuck_std_threshold: 0.05
+  spike_zscore_threshold: 4.0
+  noise_window_minutes: 30
+  noise_std_multiplier: 2.0
+  severity_quantile_for_training_cutoff: 0.99
+
+forecast:
+  valid_days: 7
+  test_days: 7
+  lag_minutes: [1, 5, 60]
+  rolling_window_minutes: 60
+  learning_rates: [0.03, 0.05, 0.1]
+  max_depths: [null, 8]
+  max_iter: 200
+
+output:
+  model_dir: "models"
+  anomaly_config_path: "models/anomaly_detector_config.json"
+  forecaster_path: "models/forecaster.pkl"
+  baseline_stats_path: "models/baseline_stats.json"
