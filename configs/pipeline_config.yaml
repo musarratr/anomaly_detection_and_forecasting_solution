@@ -1,8 +1,8 @@
 # configs/pipeline_config.yaml
 
 data:
-  raw_path: "data/raw/oxygen.csv"
-  processed_path: "data/processed/oxygen_processed_full.csv"
+  raw_path: "data/raw/oxygen_sample.csv"
+  processed_path: "data/processed/oxygen_processed_sample_1.csv"
   time_col: "time"
   sensor_id_col: "sensor_id"
   value_col: "oxygen"   # or "oxygen" if that's what you used
