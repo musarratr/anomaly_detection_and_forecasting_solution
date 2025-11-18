@@ -1,19 +1,59 @@
 # Oxygen Anomaly & Forecasting
 
-End-to-end anomaly detection and forecasting solution for minute-level dissolved oxygen readings across multiple aqua systems/customers, built for the **Cefalo Lead Data Scientist assignment**. The goal is to:
+End-to-end anomaly detection and forecasting solution for minute-level dissolved oxygen readings across multiple aqua systems/customers, built for the **Cefalo Lead Data Scientist assignment**.
 
-- Detect **multiple anomaly types** (point, collective, contextual, sensor-fault) and
-- Train a **generic, tag-agnostic forecasting model** that can predict oxygen for the **next 1 week**,  
-  while **not relying on customer-specific tags** and **minimising model duplication**.
+The goals are to:
 
-The pipeline is fully script-based (train → deploy → monitor → retrain) and mirrors the attached notebooks:
+- Detect **multiple anomaly types** (point, collective, contextual, sensor-fault) at minute resolution.
+- Train a **generic, tag-agnostic forecasting model** that can predict dissolved oxygen for the **next 1 week**, without relying on customer-specific tag schemas or duplicating models per sensor.
+
+The codebase is fully script-based (train → deploy → monitor → retrain) and mirrors the notebooks:
 
 - `notebooks/oxygen_anomaly_detector_analysis.ipynb`
 - `notebooks/oxygen_forecasting_model_tvt.ipynb`
 
 ---
 
-## Repository structure
+## 1. Solution overview & algorithm choices
+
+### 1.1 Anomaly detection (`src/models/anomaly.py`)
+
+The anomaly detector is a **rule-based, interpretable pipeline** operating per sensor and per minute:
+
+- **Point anomalies**  
+  Robust rolling Z-score of oxygen vs a rolling median + MAD per sensor.
+- **Collective anomalies**  
+  Rolling fraction of points that exceed a point-anomaly threshold within a time window (persistent spikes).
+- **Contextual anomalies**  
+  Deviation from the typical oxygen level for each *(sensor, hour-of-day)* pair using a median baseline.
+- **Sensor-fault anomalies**  
+  - *Stuck sensor*: very low rolling standard deviation over a long window.  
+  - *Spikes/glitches*: large first differences relative to their standard deviation.  
+  - *High noise*: unusually high short-window variance relative to a longer baseline window.
+
+These components are combined into a single **`severity ∈ [0,1]` per minute**, so downstream pipelines can use one scalar anomaly score while still keeping the intermediate diagnostics for debugging.
+
+During training, the pipeline computes a **severity quantile cutoff** (e.g. 0.99) and removes the most severe points from the forecasting training set (anomaly‑aware training).
+
+### 1.2 Forecasting (`src/models/forecaster.py`)
+
+The forecaster is a **single global model** shared across all sensors:
+
+- Model: `HistGradientBoostingRegressor` (sklearn).
+- Features:
+  - **Lagged values**: e.g. 1, 5, 60 minute lags per sensor.
+  - **Rolling statistics**: rolling mean over the last 60 minutes per sensor.
+  - **Calendar/time features**:
+    - `minute_of_day`, `dayofweek`
+    - Cyclic encodings: `sin_time`, `cos_time`, `sin_dow`, `cos_dow`
+- Split: time-based **train / validation / test** split using configurable `valid_days` and `test_days`.
+- Hyperparameters: small grid search over `learning_rate` and `max_depth`.
+
+This **global, tag-agnostic model** respects the assignment’s requirement to avoid customer-specific models and to generalise across different tag schemes.
+
+---
+
+## 2. Repository structure
 
 ```text
 cefalo-oxygen-anomaly/
@@ -21,9 +61,9 @@ cefalo-oxygen-anomaly/
 │   ├─ oxygen.csv                      # full raw dataset (assignment)
 │   └─ tiny_sample.csv                 # optional small sample for tests
 ├─ notebooks/
-│   ├─ oxygen_anomaly_detector_analysis.ipynb
-│   ├─ oxygen_forecasting_model_tvt.ipynb
-│   └─ oxygen_eda_notebook.ipynb
+│   ├─ oxygen_anomaly_detector_analysis.ipynb  # anomaly detection and analysis
+│   ├─ oxygen_forecasting_model_tvt.ipynb      # forecaster
+│   └─ oxygen_eda_notebook.ipynb               # exploratory analysis
 ├─ src/
 │   ├─ data/
 │   │   ├─ io.py                       # load/save CSV, parse timestamps
@@ -49,114 +89,108 @@ cefalo-oxygen-anomaly/
 └─ README.md
 ```
 
-**Key ideas**
-
-- **Anomaly detection** (`src/models/anomaly.py`):
-  - Point anomalies via robust rolling Z-scores.
-  - Collective anomalies via rolling density of point spikes.
-  - Contextual anomalies via deviation from sensor × hour-of-day median.
-  - Sensor-fault anomalies: stuck sensor (low variance), spikes (large diffs), high noise.
-  - Combined into a single **`severity ∈ [0,1]` per minute**.
-- **Forecasting** (`src/models/forecaster.py`):
-  - Single **global** `HistGradientBoostingRegressor` over all sensors (tag-agnostic).
-  - Features: lags, rolling mean, minute-of-day, day-of-week + cyclic encodings.
-  - Proper **train/validation/test** split by time (no leakage).
-  - **Anomaly-aware training**: highest-severity points are excluded before fitting.
-
 ---
 
-## Environment setup
+## 3. System design: train → deploy → monitor → retrain
 
-1. Create and activate a virtual environment (example with `venv`):
+### 3.1 Training / retraining (`src/models/train_pipeline.py`)
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # macOS / Linux
-   # .venv\Scripts\activate       # Windows PowerShell
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Ensure the raw dataset is in place:
-
-   ```bash
-   ls data/oxygen.csv
-   ```
-
-   Adjust `configs/pipeline_config.yaml` if your file name or paths differ.
-
----
-
-## Running the pipelines
-
-### 1. Training / Retraining (anomaly detection + forecasting)
-
-This runs the full **train → evaluate → save models** pipeline:
+**Entry point:**
 
 ```bash
 python -m src.models.train_pipeline --config configs/pipeline_config.yaml
 ```
 
-What it does:
+**Steps:**
 
-- Loads `data/oxygen.csv`.
-- Cleans and sorts the data.
-- Fits the **anomaly detector** and scores each minute (adds `severity`).
-- Engineers time-series features (lags, rolling mean, calendar/cyclic).
-- Drops the highest-severity quantile from training (anomaly-aware).
-- Splits by time into **train / validation / test**.
-- Trains a global `HistGradientBoostingRegressor` via small grid search.
-- Saves:
-  - `data/oxygen_processed_full.csv` (scored + features),
-  - `models/anomaly_detector_config.json`,
-  - `models/forecaster.pkl`,
-  - `models/baseline_stats.json` (test MAE/RMSE + severity stats).
+1. **Load & clean data**
+   - Read `data/oxygen.csv` via `src/data/io.py`.
+   - Drop rows with null timestamps or null oxygen values.
+   - Sort by `(sensor_id, time)`.
 
-Re-running this command on updated `data/oxygen.csv` is the **retraining** step.
+2. **Anomaly detection & scoring**
+   - Fit `OxygenAnomalyDetector` on the cleaned data.
+   - Compute point, collective, contextual, and sensor-fault scores.
+   - Combine into a single `severity` score per minute.
+
+3. **Feature engineering**
+   - Add time-of-day and day-of-week features + cyclic encodings.
+   - Add lagged oxygen values for configured `lag_minutes`.
+   - Add rolling mean over a configurable window (e.g. 60 minutes).
+   - Drop rows with incomplete feature sets.
+
+4. **Anomaly-aware training subset**
+   - Compute severity cutoff at a configurable quantile (e.g. 0.99).
+   - Exclude rows above this cutoff from training to avoid fitting on extreme anomalies.
+
+5. **Time-based train/validation/test split**
+   - Use `valid_days` and `test_days` from `pipeline_config.yaml`.
+   - Train only on the **training** window.
+   - Use **validation** for hyperparameter tuning.
+   - Reserve **test** for final unbiased evaluation.
+
+6. **Model training & evaluation**
+   - Train global `HistGradientBoostingRegressor` on training data.
+   - Choose best hyperparameters based on validation MAE.
+   - Compute MAE and RMSE on train, validation, and test sets.
+
+7. **Artefact saving**
+   - Save processed/scored dataset:
+     - `data/oxygen_processed_full.csv`
+   - Save anomaly config:
+     - `models/anomaly_detector_config.json`
+   - Save forecaster:
+     - `models/forecaster.pkl`
+   - Save baseline metrics & split info:
+     - `models/baseline_stats.json`
+
+Re-running the same command after updating `data/oxygen.csv` is the **retraining** step.
 
 ---
 
-### 2. Batch inference (score + 1-step forecasts on a new CSV)
+### 3.2 Deployment: batch inference (`src/inference/batch_inference.py`)
 
-To score a new file and generate 1-step-ahead forecasts:
+**Entry point:**
 
 ```bash
 python -m src.inference.batch_inference   --config configs/pipeline_config.yaml   --input data/raw/oxygen_sample.csv   --output data/processed/oxygen_sample_forecast.csv
 ```
 
-What it does:
+**Steps:**
 
-- Rebuilds the anomaly context using the processed training data.
-- Loads and cleans `oxygen_sample.csv`.
-- Scores anomalies (including `severity`).
-- Builds the same feature set used at training.
-- Predicts 1-step-ahead oxygen (`y_pred`) for all rows with full features.
-- Writes the **scored + predicted** dataset to the output path.
+1. Load trained `forecaster.pkl` and anomaly config.
+2. Rebuild **context baseline** for anomalies using `data/oxygen_processed_full.csv`.
+3. Load and clean new raw data (`oxygen_sample.csv`).
+4. Score anomalies (including `severity`).
+5. Build the **same feature set** used at training (lags, rolling, time encodings).
+6. Generate 1-step-ahead predictions `y_pred` for all rows with full features.
+7. Save a CSV with both anomaly scores and forecasts to `data/processed/oxygen_sample_forecast.csv`.
 
 ---
 
-### 3. 1-week horizon forecast for a single sensor
+### 3.3 Deployment: 1-week horizon forecast (`src/inference/horizon_forecast.py`)
 
-To generate a **7-day, minute-level** forecast for a specific sensor:
+**Entry point:**
 
 ```bash
-python -m src.inference.horizon_forecast   --config configs/pipeline_config.yaml   --processed data/processed/oxygen_processed_full.csv   --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'   --output data/processed/forecast_1week_SubUnit_07.csv
+python -m src.inference.horizon_forecast   --config configs/pipeline_config.yaml   --processed data/oxygen_processed_full.csv   --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'   --output data/processed/forecast_1week_SubUnit_07.csv
 ```
 
-Notes:
+**Behaviour:**
 
-- `sensor_id` **must be quoted** because it contains `|` (pipeline character in the shell).
-- The script iteratively rolls the forecaster forward 1 minute at a time for 7 days, using the same lag/rolling/calendar feature definitions as in training.
+- Filters processed history for a given `sensor_id`.
+- Iteratively rolls the forecaster forward in **1-minute steps for 7 days**:
+  - Uses the last observed/predicted values to compute lag and rolling features.
+  - Adds calendar/cyclic features for each forecasted timestamp.
+- Writes a dense 1-week forecast timeline for that sensor.
+
+> Note: `sensor_id` must be **quoted** in the shell because it contains `|`, which is otherwise treated as the pipe operator.
 
 ---
 
-### 4. Monitoring & drift checks
+### 3.4 Monitoring & drift detection (`src/evaluation/monitoring.py`)
 
-In a notebook or script, you can monitor new data vs the training baseline:
+Example (notebook or script):
 
 ```python
 import pandas as pd
@@ -175,22 +209,134 @@ monitor_new_data(
 )
 ```
 
-This compares:
+The monitoring step:
 
-- **Severity distribution** (median) vs training,
-- **RMSE** vs baseline test RMSE,
-
-and prints warnings when thresholds are exceeded, signalling **potential drift** and the need to retrain.
+- Compares the **median severity** of the new data vs the baseline.
+- Computes **RMSE** on the new data vs the baseline test RMSE.
+- Prints warnings when severity or RMSE drift beyond thresholds, signalling that **retraining** may be required.
 
 ---
 
-## Assumptions & limitations
+## 4. Model performance evaluation
 
-- **Tag-agnostic design**: the model only uses `sensor_id` and time-based features; it does **not** rely on specific metadata tags (Unit, Section, Equipment, Subunit) so it can generalise across customers with different tag schemas.
-- **Rule-based anomaly detection**: anomaly detection is deterministic and interpretable, but may miss highly complex patterns that a learned model could capture.
-- **Single global forecaster**: one model is shared across all sensors; this reduces duplication but may under-fit very unusual sensors or locations.
-- **Minute-level, regular sampling assumed**: the pipeline expects roughly regular 1-minute intervals; large gaps or irregular sampling are not explicitly modelled.
-- **No real-time infrastructure**: the implementation is **batch-oriented** (CLI scripts and notebooks). Production-grade streaming / deployment (e.g. APIs, schedulers, containers) is out of scope for this assignment but can be added on top of these pipelines.
-- **Performance metrics**: MAE/RMSE are computed and stored in `models/baseline_stats.json` for the assignment; exact numbers depend on the environment and any pre-filtering choices.
+Model performance is evaluated in the training pipeline:
 
-For the assignment, these choices trade off **simplicity + interpretability** with **sufficient robustness** to detect and score anomalies and produce reasonable 1-week oxygen forecasts on minute-level data.
+- Metrics: **MAE** and **RMSE** for **train**, **validation**, and **test** splits.
+- Implementation: `src/models/forecaster.py` and `src/evaluation/metrics.py`.
+- Outputs:
+  - Printed in the console when running `train_pipeline.py`.
+  - Persisted in `models/baseline_stats.json`:
+    - `test_mae`, `test_rmse`
+    - `severity_median` (overall median anomaly severity)
+    - `valid_start`, `test_start` (split boundaries)
+    - Selected hyperparameters for the forecaster.
+
+These metrics are directly used by the monitoring component to decide whether model performance is degrading over time.
+
+---
+
+## 5. Model artefact hosting
+
+For the assignment, the key artefacts are:
+
+- `models/anomaly_detector_config.json`
+- `models/forecaster.pkl`
+- `models/baseline_stats.json`
+
+These can be zipped as `models.zip` and uploaded to an external file-sharing service (e.g. Google Drive, OneDrive, or a private S3 bucket) to allow reviewers to:
+
+- Download the **trained anomaly detector configuration**.
+- Load the **trained forecaster** without re-running the full training pipeline.
+- Inspect the **baseline metrics** used for monitoring.
+
+> **Assignment submission pattern**  
+> Upload `models/` as a zip archive and replace the placeholder link below with your actual link:
+
+```text
+Model artefacts (zip): https://drive.google.com/YOUR-MODELS-ZIP-LINK
+```
+
+---
+
+## 6. Environment setup & run instructions
+
+### 6.1 Create and activate a virtual environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate      # macOS / Linux
+# .venv\Scriptsctivate       # Windows PowerShell
+```
+
+### 6.2 Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 6.3 Ensure datasets are in place
+
+```bash
+ls data/oxygen.csv
+```
+
+If the filenames or paths differ, update `configs/pipeline_config.yaml` (the `data` section) accordingly.
+
+### 6.4 Run pipelines
+
+- **Train / Retrain**
+
+  ```bash
+  python -m src.models.train_pipeline --config configs/pipeline_config.yaml
+  ```
+
+- **Batch inference on a new file**
+
+  ```bash
+  python -m src.inference.batch_inference     --config configs/pipeline_config.yaml     --input data/raw/oxygen_sample.csv     --output data/processed/oxygen_sample_forecast.csv
+  ```
+
+- **1-week horizon forecast for a single sensor**
+
+  ```bash
+  python -m src.inference.horizon_forecast     --config configs/pipeline_config.yaml     --processed data/oxygen_processed_full.csv     --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'     --output data/processed/forecast_1week_SubUnit_07.csv
+  ```
+
+---
+
+## 7. Limitations & possible improvements
+
+### 7.1 Current limitations
+
+- **Rule-based anomaly detection**  
+  Highly interpretable but may miss subtle or high-dimensional anomaly patterns that a learned model (e.g. autoencoder, isolation forest, or deep sequence model) could capture.
+
+- **Single global forecaster**  
+  Reduces model duplication and respects the assignment constraints, but:
+  - May underfit very atypical sensors.
+  - Does not explicitly model sensor-specific trends beyond what can be captured through lags and rolling stats.
+
+- **Assumes roughly regular 1-minute sampling**  
+  Large gaps, irregular sampling, or missing blocks are not explicitly modelled; they are implicitly handled via cleaning and feature construction.
+
+- **Batch-oriented implementation**  
+  Scripts are designed for batch runs (e.g. nightly jobs). Real-time APIs, model serving infrastructure, and CI/CD are out of scope for this assignment.
+
+### 7.2 Possible improvements
+
+- **Learned anomaly models**  
+  Add an optional ML-based anomaly detector (e.g. isolation forest on residuals, sequence models on windows) alongside the rule-based detector to improve recall for complex behaviours.
+
+- **Per-segment or hierarchical forecasting**  
+  Introduce a hierarchical or mixture-of-experts forecaster that can specialise on different groups of sensors while retaining a shared core.
+
+- **Better handling of irregular data**  
+  Incorporate explicit gap handling, imputation strategies, or models designed for irregular time series.
+
+- **Uncertainty estimation**  
+  Extend forecasts with prediction intervals (e.g. via quantile regression or ensembles) to communicate uncertainty in oxygen predictions.
+
+- **Productionisation**  
+  Wrap the pipelines into containerised services, add scheduling (e.g. Airflow), centralised logging, and model registry integration (MLflow or similar) for a full production MLOps setup.
+
+These enhancements would build on the current assignment-focused implementation while preserving its interpretability and tag-agnostic design.
