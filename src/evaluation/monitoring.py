@@ -37,14 +37,14 @@ def monitor_new_data(
 
     # RMSE shift
     residuals = df_with_preds[value_col] - df_with_preds[pred_col]
-    new_rmse = float(np.sqrt(np.mean(residuals ** 2)))
+    new_rmse = float(np.sqrt(np.mean(residuals**2)))
     base_rmse = stats["test_rmse"]
 
     print(f"Baseline severity median: {base_sev_median:.3f}")
-    print(f"New severity median: {new_sev_median:.3f} (Δ={sev_diff:+.3f})")
+    print(f"New      severity median: {new_sev_median:.3f} (Δ={sev_diff:+.3f})")
 
     print(f"Baseline test RMSE: {base_rmse:.3f}")
-    print(f"New RMSE:      {new_rmse:.3f} (Δ={new_rmse - base_rmse:+.3f})")
+    print(f"New      RMSE:      {new_rmse:.3f} (Δ={new_rmse - base_rmse:+.3f})")
 
     if sev_diff > 0.1:
         print("[WARN] Severity median increased significantly. Possible data drift.")
