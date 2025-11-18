@@ -21,8 +21,9 @@ cefalo-oxygen-anomaly/
 │   ├─ oxygen.csv                      # full raw dataset (assignment)
 │   └─ tiny_sample.csv                 # optional small sample for tests
 ├─ notebooks/
-│   ├─ oxygen_anomaly_detector_v3_analysis.ipynb
-│   └─ oxygen_forecasting_model_tvt_v2.ipynb
+│   ├─ oxygen_anomaly_detector_analysis.ipynb
+│   ├─ oxygen_forecasting_model_tvt.ipynb
+│   └─ oxygen_eda_notebook.ipynb
 ├─ src/
 │   ├─ data/
 │   │   ├─ io.py                       # load/save CSV, parse timestamps
