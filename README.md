@@ -1,4 +1,4 @@
-# Cefalo Oxygen Anomaly & Forecasting
+# Oxygen Anomaly & Forecasting
 
 End-to-end anomaly detection and forecasting solution for minute-level dissolved oxygen readings across multiple aqua systems/customers, built for the **Cefalo Lead Data Scientist assignment**. The goal is to:
 
