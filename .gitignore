@@ -102,6 +102,8 @@ conda-env/
 # Jupyter / IPython
 ########################################
 
+notebooks/archives/
+
 .ipynb_checkpoints/
 profile_default/
 ipython_config.py
