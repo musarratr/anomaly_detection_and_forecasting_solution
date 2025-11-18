@@ -13,10 +13,10 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 class ForecastConfig:
     valid_days: int = 7
     test_days: int = 7
-    lag_minutes: List[int] = None
+    lag_minutes: List[int] | None = None
     rolling_window_minutes: int = 60
-    learning_rates: List[float] = None
-    max_depths: List[int] = None
+    learning_rates: List[float] | None = None
+    max_depths: List[int] | None = None
     max_iter: int = 200
 
     def __post_init__(self):
@@ -29,6 +29,7 @@ class ForecastConfig:
 
 
 def time_based_splits(df: pd.DataFrame, cfg: ForecastConfig, time_col: str):
+    """Compute time-based train/valid/test masks."""
     max_time = df[time_col].max()
     test_start = max_time - pd.Timedelta(days=cfg.test_days)
     valid_start = test_start - pd.Timedelta(days=cfg.valid_days)
@@ -60,9 +61,10 @@ def train_global_forecaster(
     X_test, y_test = test[feature_cols], test[value_col]
 
     best_mae = np.inf
-    best_model = None
+    best_model: HistGradientBoostingRegressor | None = None
     best_params: Dict = {}
 
+    # Simple grid search over learning_rate x max_depth
     for lr in cfg.learning_rates:
         for depth in cfg.max_depths:
             model = HistGradientBoostingRegressor(

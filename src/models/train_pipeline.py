@@ -7,7 +7,7 @@ End-to-end TRAINING / RETRAINING pipeline:
 2. Clean data (drop nulls, sort).
 3. Fit anomaly detector & score data.
 4. Build forecasting features from cleaned + scored data.
-5. Train global forecaster with TVT split.
+5. Train global forecaster with TVT split (train / valid / test).
 6. Save models and baseline stats for monitoring.
 """
 
@@ -15,14 +15,18 @@ import argparse
 import json
 import os
 
-import yaml
 import joblib
 import numpy as np
 import pandas as pd
+import yaml
 
 from src.data.io import load_raw_oxygen, save_dataframe
 from src.data.preprocessing import basic_cleaning
-from src.features.timeseries import add_time_features, add_lag_features, add_rolling_features
+from src.features.timeseries import (
+    add_time_features,
+    add_lag_features,
+    add_rolling_features,
+)
 from src.models.anomaly import AnomalyConfig, OxygenAnomalyDetector
 from src.models.forecaster import ForecastConfig, train_global_forecaster
 
@@ -56,36 +60,56 @@ def run_training(config_path: str):
     # 2. Fit anomaly detector & score
     a_cfg = AnomalyConfig(**anomaly_cfg)
     detector = OxygenAnomalyDetector(a_cfg)
-    detector.fit(df_clean, time_col=time_col, sensor_id_col=sensor_id_col, value_col=value_col)
-
-    df_scored = detector.score(
-        df_clean, time_col=time_col, sensor_id_col=sensor_id_col, value_col=value_col
+    detector.fit(
+        df_clean,
+        time_col=time_col,
+        sensor_id_col=sensor_id_col,
+        value_col=value_col,
     )
 
-    # 3. Build forecasting features (time, lags, rolling)
+    df_scored = detector.score(
+        df_clean,
+        time_col=time_col,
+        sensor_id_col=sensor_id_col,
+        value_col=value_col,
+    )
+
+    # 3. Build forecasting features (time encodings, lags, rolling mean)
     df_feat = add_time_features(df_scored, time_col=time_col)
     df_feat = add_lag_features(
-        df_feat, sensor_id_col=sensor_id_col, value_col=value_col,
+        df_feat,
+        sensor_id_col=sensor_id_col,
+        value_col=value_col,
         lag_minutes=forecast_cfg["lag_minutes"],
     )
     df_feat = add_rolling_features(
-        df_feat, sensor_id_col=sensor_id_col, value_col=value_col,
+        df_feat,
+        sensor_id_col=sensor_id_col,
+        value_col=value_col,
         rolling_window_minutes=forecast_cfg["rolling_window_minutes"],
     )
 
-    # Drop rows with NaNs in features (due to initial lags/rolls)
+    # 4. Drop rows with NaNs in features (due to initial lags/rolls)
     feature_cols = (
         [f"lag_{lag}" for lag in forecast_cfg["lag_minutes"]]
-        + ["roll_mean_60", "sin_time", "cos_time", "sin_dow", "cos_dow"]
+        + [
+            "roll_mean_60",
+            "minute_of_day",
+            "dayofweek",
+            "sin_time",
+            "cos_time",
+            "sin_dow",
+            "cos_dow",
+        ]
     )
     df_model = df_feat.dropna(subset=feature_cols + [value_col]).copy()
 
-    # 4. Filter out top severity quantile for training (anomaly-aware training)
+    # 5. Filter out top severity quantile for training (anomaly-aware training)
     q_cut = anomaly_cfg["severity_quantile_for_training_cutoff"]
     sev_cut = df_model["severity"].quantile(q_cut)
     df_model_trainable = df_model[df_model["severity"] < sev_cut].copy()
 
-    # 5. Train global forecaster
+    # 6. Train global forecaster (time-based train/valid/test split)
     f_cfg = ForecastConfig(
         valid_days=forecast_cfg["valid_days"],
         test_days=forecast_cfg["test_days"],
@@ -110,19 +134,18 @@ def run_training(config_path: str):
     print("Valid MAE / RMSE:", metrics["valid"])
     print("Test  MAE / RMSE:", metrics["test"])
 
-    # 6. Save processed dataset sample and full processed path
+    # 7. Save processed dataset (scored + engineered features)
     save_dataframe(df_model, data_cfg["processed_path"])
 
-    # 7. Save anomaly config
+    # 8. Save anomaly config
     os.makedirs(out_cfg["model_dir"], exist_ok=True)
     with open(out_cfg["anomaly_config_path"], "w", encoding="utf-8") as f:
         json.dump(a_cfg.__dict__, f, indent=2)
 
-    # 8. Save forecaster
+    # 9. Save forecaster model
     joblib.dump(forecaster, out_cfg["forecaster_path"])
 
-    # 9. Save baseline stats for monitoring
-    # Use test metrics + severity distribution
+    # 10. Save baseline stats for monitoring
     sev_median = float(df_model["severity"].median())
     baseline_stats = {
         "severity_median": sev_median,
@@ -139,7 +162,9 @@ def run_training(config_path: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train anomaly detector + forecaster.")
+    parser = argparse.ArgumentParser(
+        description="Train anomaly detector + forecaster."
+    )
     parser.add_argument(
         "--config",
         type=str,

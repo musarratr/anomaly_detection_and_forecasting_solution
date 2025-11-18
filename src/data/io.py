@@ -9,9 +9,24 @@ def load_raw_oxygen(path: str,
                     sensor_id_col: str = "sensor_id",
                     value_col: str = "Oxygen[%sat]") -> pd.DataFrame:
     """Load the raw oxygen dataset from CSV."""
+
     if not os.path.exists(path):
         raise FileNotFoundError(f"Raw data not found at {path}")
     df = pd.read_csv(path)
+
+    # Generic sensor id: we just use tags as opaque identifiers.
+    # This will still generalize to new customers & tag values.
+
+    df["sensor_id"] = (
+        df["System"].astype(str)
+        + "|"
+        + df["EquipmentUnit"].astype(str)
+        + "|"
+        + df["SubUnit"].astype(str)
+    )
+
+    df.rename(columns={"Oxygen[%sat]": "oxygen"}, inplace=True)
+
     if time_col not in df.columns:
         raise ValueError(f"time_col '{time_col}' not found in columns: {df.columns}")
     df[time_col] = pd.to_datetime(df[time_col], errors="coerce")

@@ -31,19 +31,28 @@ class AnomalyConfig:
     spike_zscore_threshold: float = 4.0
     noise_window_minutes: int = 30
     noise_std_multiplier: float = 2.0
-    # NEW: training-only hyperparameter (used in train_pipeline.py)
+    # Training-only hyperparameter (used in train_pipeline.py)
     severity_quantile_for_training_cutoff: float = 0.99
 
 
 class OxygenAnomalyDetector:
     """Wrapper around rule-based anomaly detection pipeline."""
 
-    def __init__(self, cfg: AnomalyConfig = None):
+    def __init__(self, cfg: AnomalyConfig | None = None):
         self.cfg = cfg or AnomalyConfig()
         self.fitted_ = False
-        self.context_baseline_ = None  # by (sensor_id, hour_of_day)
+        self.context_baseline_: pd.Series | None = None  # by (sensor_id, hour_of_day)
 
-    def fit(self, df: pd.DataFrame, time_col: str, sensor_id_col: str, value_col: str):
+    # ------------------------------------------------------------------ #
+    # FIT: learn simple context baseline
+    # ------------------------------------------------------------------ #
+    def fit(
+        self,
+        df: pd.DataFrame,
+        time_col: str,
+        sensor_id_col: str,
+        value_col: str,
+    ):
         """
         'Fit' computes simple context baseline: median oxygen per sensor_id x hour_of_day.
         """
@@ -54,6 +63,9 @@ class OxygenAnomalyDetector:
         self.fitted_ = True
         return self
 
+    # ------------------------------------------------------------------ #
+    # Point anomalies
+    # ------------------------------------------------------------------ #
     def _add_point_scores(
         self, df: pd.DataFrame, sensor_id_col: str, value_col: str
     ) -> pd.DataFrame:
@@ -63,9 +75,15 @@ class OxygenAnomalyDetector:
 
         # Rolling median & MAD per sensor
         grp = df.groupby(sensor_id_col)[value_col]
-        rolling_median = grp.rolling(win, min_periods=win // 2).median().reset_index(level=0, drop=True)
-        rolling_mad = (
-            grp.transform(lambda x: (np.abs(x - x.median())).rolling(win, min_periods=win // 2).median())
+        rolling_median = (
+            grp.rolling(win, min_periods=win // 2)
+            .median()
+            .reset_index(level=0, drop=True)
+        )
+        rolling_mad = grp.transform(
+            lambda x: (np.abs(x - x.median()))
+            .rolling(win, min_periods=win // 2)
+            .median()
         )
 
         # Avoid division by zero
@@ -74,9 +92,14 @@ class OxygenAnomalyDetector:
         df["point_score"] = np.abs(z).fillna(0.0)
 
         # Normalise to [0,1] by threshold
-        df["point_score_norm"] = np.clip(df["point_score"] / cfg.point_zscore_threshold, 0, 1)
+        df["point_score_norm"] = np.clip(
+            df["point_score"] / cfg.point_zscore_threshold, 0, 1
+        )
         return df
 
+    # ------------------------------------------------------------------ #
+    # Collective anomalies
+    # ------------------------------------------------------------------ #
     def _add_collective_scores(
         self, df: pd.DataFrame, sensor_id_col: str
     ) -> pd.DataFrame:
@@ -85,7 +108,9 @@ class OxygenAnomalyDetector:
         win = cfg.collective_window_minutes
 
         # Collective score = rolling mean of (point_score_norm > some threshold)
-        high_point = (df["point_score_norm"] > cfg.collective_point_threshold).astype(float)
+        high_point = (df["point_score_norm"] > cfg.collective_point_threshold).astype(
+            float
+        )
         df["collective_score"] = (
             high_point.groupby(df[sensor_id_col])
             .rolling(win, min_periods=1)
@@ -95,10 +120,14 @@ class OxygenAnomalyDetector:
         # Already in [0,1]
         return df
 
+    # ------------------------------------------------------------------ #
+    # Contextual anomalies
+    # ------------------------------------------------------------------ #
     def _add_contextual_scores(
         self, df: pd.DataFrame, time_col: str, sensor_id_col: str, value_col: str
     ) -> pd.DataFrame:
         if self.context_baseline_ is None:
+            df = df.copy()
             df["context_score"] = 0.0
             return df
 
@@ -121,6 +150,9 @@ class OxygenAnomalyDetector:
         df["context_score"] = np.clip(diff / (scale * 3.0), 0, 1)  # roughly 3-MAD
         return df
 
+    # ------------------------------------------------------------------ #
+    # Sensor-fault anomalies
+    # ------------------------------------------------------------------ #
     def _add_sensor_fault_scores(
         self, df: pd.DataFrame, sensor_id_col: str, time_col: str, value_col: str
     ) -> pd.DataFrame:
@@ -167,6 +199,9 @@ class OxygenAnomalyDetector:
         )
         return df
 
+    # ------------------------------------------------------------------ #
+    # Combine into severity
+    # ------------------------------------------------------------------ #
     def _combine_scores(self, df: pd.DataFrame) -> pd.DataFrame:
         """Combine scores into a single severity in [0,1]."""
         df = df.copy()
@@ -185,6 +220,9 @@ class OxygenAnomalyDetector:
         df["severity"] = np.clip(raw, 0, 1)
         return df
 
+    # ------------------------------------------------------------------ #
+    # Public API
+    # ------------------------------------------------------------------ #
     def score(
         self,
         df: pd.DataFrame,
@@ -194,7 +232,7 @@ class OxygenAnomalyDetector:
     ) -> pd.DataFrame:
         """Run full anomaly pipeline and return scored frame."""
         if not self.fitted_:
-            raise RuntimeError("Call fit(df, ...) before score(df, ...)")
+            raise RuntimeError("Call `fit(df, ...)` before `score(df, ...)`.")
 
         df_scored = df.copy()
         df_scored = self._add_point_scores(df_scored, sensor_id_col, value_col)

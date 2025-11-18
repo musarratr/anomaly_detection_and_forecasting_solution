@@ -41,7 +41,10 @@ def add_rolling_features(
     df = df.copy()
     df["roll_mean_60"] = (
         df.groupby(sensor_id_col)[value_col]
-        .rolling(window=rolling_window_minutes, min_periods=rolling_window_minutes // 2)
+        .rolling(
+            window=rolling_window_minutes,
+            min_periods=rolling_window_minutes // 2,
+        )
         .mean()
         .reset_index(level=0, drop=True)
     )

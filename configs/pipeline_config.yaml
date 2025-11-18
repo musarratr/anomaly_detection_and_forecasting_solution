@@ -5,7 +5,7 @@ data:
   processed_path: "data/processed/oxygen_processed_full.csv"
   time_col: "time"
   sensor_id_col: "sensor_id"
-  value_col: "Oxygen[%sat]"   # or "oxygen" if that's what you used
+  value_col: "oxygen"   # or "oxygen" if that's what you used
   tz: null                    # e.g. "UTC" if you want to localise
 
 anomaly:
