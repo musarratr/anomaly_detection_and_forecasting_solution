@@ -53,7 +53,7 @@ def forecast_one_week(
     # ------------------------------------------------------------------ #
     # 2. Load processed data (scored + features) and trained forecaster
     # ------------------------------------------------------------------ #
-    df = pd.read_csv(processed_path)
+    df = pd.read_csv(processed_path, low_memory=False)
     df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
 
     forecaster = joblib.load(out_cfg["forecaster_path"])
