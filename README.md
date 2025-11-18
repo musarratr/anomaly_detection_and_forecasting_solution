@@ -8,8 +8,8 @@ End-to-end anomaly detection and forecasting solution for minute-level dissolved
 
 The pipeline is fully script-based (train → deploy → monitor → retrain) and mirrors the attached notebooks:
 
-- `notebooks/oxygen_anomaly_detector_v3_analysis.ipynb`
-- `notebooks/oxygen_forecasting_model_tvt_v2.ipynb`
+- `notebooks/oxygen_anomaly_detector_analysis.ipynb`
+- `notebooks/oxygen_forecasting_model_tvt.ipynb`
 
 ---
 
