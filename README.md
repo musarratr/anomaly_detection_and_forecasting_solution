@@ -86,7 +86,9 @@ cefalo-oxygen-anomaly/
 │   ├─ anomaly_detector_config.json    # saved anomaly config (traceability)
 │   ├─ forecaster.pkl                  # trained sklearn model
 │   └─ baseline_stats.json             # baseline metrics used for monitoring
+└─ Dockerfile
 └─ README.md
+└─ requirement.txt
 ```
 
 ---
