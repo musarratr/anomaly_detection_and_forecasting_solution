@@ -462,7 +462,16 @@ python -m src.inference.horizon_forecast   --config configs/pipeline_config.yaml
 Run via Docker (note the quotes around `sensor_id` to avoid shell pipes):
 
 ```bash
-docker run --rm   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   -v "$(pwd)/configs:/app/configs"   cefalo-oxygen:latest   src.inference.horizon_forecast   --config configs/pipeline_config.yaml   --processed data/oxygen_processed_full.csv   --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'   --output data/processed/forecast_1week_SubUnit_07.csv
+docker run --rm \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/models:/app/models" \
+  -v "$(pwd)/configs:/app/configs" \
+  cefalo-oxygen:latest \
+  src.inference.horizon_forecast \
+    --config configs/pipeline_config.yaml \
+    --processed data/processed/oxygen_processed_full.csv \
+    --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07' \
+    --output data/processed/forecast_1week_SubUnit_07.csv
 ```
 
 You can:
