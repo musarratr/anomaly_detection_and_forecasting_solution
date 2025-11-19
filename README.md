@@ -97,7 +97,8 @@ cefalo-oxygen-anomaly/
 **Entry point:**
 
 ```bash
-python -m src.models.train_pipeline --config configs/pipeline_config.yaml
+python -m src.models.train_pipeline \
+  --config configs/pipeline_config.yaml
 ```
 
 **Steps:**
@@ -152,7 +153,10 @@ Re-running the same command after updating `data/oxygen.csv` is the **retraining
 **Entry point:**
 
 ```bash
-python -m src.inference.batch_inference   --config configs/pipeline_config.yaml   --input data/raw/oxygen_sample.csv   --output data/processed/oxygen_sample_forecast.csv
+python -m src.inference.batch_inference \
+  --config configs/pipeline_config.yaml \
+  --input data/raw/oxygen_sample.csv \
+  --output data/processed/oxygen_sample_forecast.csv
 ```
 
 **Steps:**
@@ -172,7 +176,11 @@ python -m src.inference.batch_inference   --config configs/pipeline_config.yaml 
 **Entry point:**
 
 ```bash
-python -m src.inference.horizon_forecast   --config configs/pipeline_config.yaml   --processed data/oxygen_processed_full.csv   --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'   --output data/processed/forecast_1week_SubUnit_07.csv
+python -m src.inference.horizon_forecast \
+  --config configs/pipeline_config.yaml \
+  --processed data/oxygen_processed_full.csv \
+  --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07' \
+  --output data/processed/forecast_1week_SubUnit_07.csv
 ```
 
 **Behaviour:**
@@ -263,21 +271,25 @@ Model artefacts (zip): https://drive.google.com/YOUR-MODELS-ZIP-LINK
 ### 6.1 Create and activate a virtual environment
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate      # macOS / Linux
+python -m venv \
+  .venv
+source \
+  .venv/bin/activate      # macOS / Linux
 # .venv\Scriptsctivate       # Windows PowerShell
 ```
 
 ### 6.2 Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install \
+  -r requirements.txt
 ```
 
 ### 6.3 Ensure datasets are in place
 
 ```bash
-ls data/oxygen.csv
+ls \
+  data/oxygen.csv
 ```
 
 If the filenames or paths differ, update `configs/pipeline_config.yaml` (the `data` section) accordingly.
@@ -287,25 +299,36 @@ If the filenames or paths differ, update `configs/pipeline_config.yaml` (the `da
 - **Train + promote (registry-aware)**
 
   ```bash
-  python -m src.models.train_and_promote --config configs/pipeline_config.yaml --model-dir models --registry-dir models/registry
+  python -m src.models.train_and_promote \
+    --config configs/pipeline_config.yaml \
+    --model-dir models \
+    --registry-dir models/registry
   ```
 
 - **Train only (legacy direct run)**
 
   ```bash
-  python -m src.models.train_pipeline --config configs/pipeline_config.yaml
+  python -m src.models.train_pipeline \
+    --config configs/pipeline_config.yaml
   ```
 
 - **Batch inference on a new file**
 
   ```bash
-  python -m src.inference.batch_inference     --config configs/pipeline_config.yaml     --input data/raw/oxygen_sample.csv     --output data/processed/oxygen_sample_forecast.csv
+  python -m src.inference.batch_inference \
+    --config configs/pipeline_config.yaml \
+    --input data/raw/oxygen_sample.csv \
+    --output data/processed/oxygen_sample_forecast.csv
   ```
 
 - **1-week horizon forecast for a single sensor**
 
   ```bash
-  python -m src.inference.horizon_forecast     --config configs/pipeline_config.yaml     --processed data/oxygen_processed_full.csv     --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'     --output data/processed/forecast_1week_SubUnit_07.csv
+  python -m src.inference.horizon_forecast \
+    --config configs/pipeline_config.yaml \
+    --processed data/oxygen_processed_full.csv \
+    --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07' \
+    --output data/processed/forecast_1week_SubUnit_07.csv
   ```
 
 ### 6.5 Model registry & promotion (artefact tracking)
@@ -320,7 +343,15 @@ If the filenames or paths differ, update `configs/pipeline_config.yaml` (the `da
   - First run wins by default; later runs must beat the current production metric.
 
 - **How to run**
-  - Locally: `python -m src.models.train_and_promote --config configs/pipeline_config.yaml --model-dir models --registry-dir models/registry`
+  - Locally:
+
+    ```bash
+    python -m src.models.train_and_promote \
+      --config configs/pipeline_config.yaml \
+      --model-dir models \
+      --registry-dir models/registry
+    ```
+
   - Docker: see Section 8 (default `CMD` already runs this).
 
 - **Outputs per run**
@@ -385,7 +416,9 @@ The Dockerfile is expected to live at the project root (`cefalo-oxygen-anomaly/D
 From the project root (`cefalo-oxygen-anomaly/`):
 
 ```bash
-docker build -t cefalo-oxygen:latest .
+docker build \
+  -t cefalo-oxygen:latest \
+  .
 ```
 
 This creates an image called `cefalo-oxygen:latest` with the code, dependencies, and an entrypoint that runs:
@@ -409,13 +442,24 @@ All example commands below assume you are running from the **project root** and 
 Equivalent local command:
 
 ```bash
-python -m src.models.train_and_promote --config configs/pipeline_config.yaml --model-dir models --registry-dir models/registry
+python -m src.models.train_and_promote \
+  --config configs/pipeline_config.yaml \
+  --model-dir models \
+  --registry-dir models/registry
 ```
 
 Run via Docker:
 
 ```bash
-docker run --rm   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   -v "$(pwd)/configs:/app/configs"   cefalo-oxygen:latest   src.models.train_and_promote   --config configs/pipeline_config.yaml   --model-dir models   --registry-dir models/registry
+docker run --rm \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/models:/app/models" \
+  -v "$(pwd)/configs:/app/configs" \
+  cefalo-oxygen:latest \
+  src.models.train_and_promote \
+    --config configs/pipeline_config.yaml \
+    --model-dir models \
+    --registry-dir models/registry
 ```
 
 > Tip: `.dockerignore` now excludes data/models/notebooks and cache files to keep the build context small and avoid snapshot/export errors.
@@ -435,13 +479,24 @@ You can switch to a different config file just by changing the `--config` argume
 Equivalent local command:
 
 ```bash
-python -m src.inference.batch_inference   --config configs/pipeline_config.yaml   --input data/raw/oxygen_sample.csv   --output data/processed/oxygen_sample_forecast.csv
+python -m src.inference.batch_inference \
+  --config configs/pipeline_config.yaml \
+  --input data/raw/oxygen_sample.csv \
+  --output data/processed/oxygen_sample_forecast.csv
 ```
 
 Run via Docker:
 
 ```bash
-docker run --rm   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   -v "$(pwd)/configs:/app/configs"   cefalo-oxygen:latest   src.inference.batch_inference   --config configs/pipeline_config.yaml   --input data/raw/oxygen_sample.csv   --output data/processed/oxygen_sample_forecast.csv
+docker run --rm \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/models:/app/models" \
+  -v "$(pwd)/configs:/app/configs" \
+  cefalo-oxygen:latest \
+  src.inference.batch_inference \
+    --config configs/pipeline_config.yaml \
+    --input data/raw/oxygen_sample.csv \
+    --output data/processed/oxygen_sample_forecast.csv
 ```
 
 Key points:
@@ -455,7 +510,11 @@ Key points:
 Equivalent local command:
 
 ```bash
-python -m src.inference.horizon_forecast   --config configs/pipeline_config.yaml   --processed data/oxygen_processed_full.csv   --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'   --output data/processed/forecast_1week_SubUnit_07.csv
+python -m src.inference.horizon_forecast \
+  --config configs/pipeline_config.yaml \
+  --processed data/oxygen_processed_full.csv \
+  --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07' \
+  --output data/processed/forecast_1week_SubUnit_07.csv
 ```
 
 Run via Docker (note the quotes around `sensor_id` to avoid shell pipes):
@@ -489,7 +548,12 @@ You can:
 A simple way to do this in Docker is to override the entrypoint and run a short inline script:
 
 ```bash
-docker run --rm   --entrypoint python   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   cefalo-oxygen:latest   -c "import pandas as pd; from src.evaluation.monitoring import monitor_new_data; df = pd.read_csv('data/processed/oxygen_sample_forecast.csv'); out = monitor_new_data(df_scored=df, df_with_preds=df, model_dir='models', registry_dir='models/registry'); print(out)"
+docker run --rm \
+  --entrypoint python \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/models:/app/models" \
+  cefalo-oxygen:latest \
+  -c "import pandas as pd; from src.evaluation.monitoring import monitor_new_data; df = pd.read_csv('data/processed/oxygen_sample_forecast.csv'); out = monitor_new_data(df_scored=df, df_with_preds=df, model_dir='models', registry_dir='models/registry'); print(out)"
 ```
 
 This will:
@@ -501,7 +565,14 @@ This will:
 If you prefer a cleaner interface, you can add a small CLI wrapper (e.g. `src/evaluation/run_monitoring.py`) and then run it via Docker exactly like the training and inference modules:
 
 ```bash
-docker run --rm   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   -v "$(pwd)/configs:/app/configs"   cefalo-oxygen:latest   src.evaluation.run_monitoring   --scored_path data/processed/oxygen_sample_forecast.csv   --baseline_stats_path models/baseline_stats.json
+docker run --rm \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/models:/app/models" \
+  -v "$(pwd)/configs:/app/configs" \
+  cefalo-oxygen:latest \
+  src.evaluation.run_monitoring \
+    --scored_path data/processed/oxygen_sample_forecast.csv \
+    --baseline_stats_path models/baseline_stats.json
 ```
 
 ### 8.8 Using docker-compose (optional)
@@ -528,25 +599,41 @@ You can run:
 - **Build image**
 
   ```bash
-  docker compose build
+  docker compose \
+    build
   ```
 
 - **Train** (default command)
 
   ```bash
-  docker compose run --rm oxygen
+  docker compose run \
+    --rm \
+    oxygen
   ```
 
 - **Batch inference**
 
   ```bash
-  docker compose run --rm oxygen     src.inference.batch_inference     --config configs/pipeline_config.yaml     --input data/raw/oxygen_sample.csv     --output data/processed/oxygen_sample_forecast.csv
+  docker compose run \
+    --rm \
+    oxygen \
+    src.inference.batch_inference \
+      --config configs/pipeline_config.yaml \
+      --input data/raw/oxygen_sample.csv \
+      --output data/processed/oxygen_sample_forecast.csv
   ```
 
 - **Horizon forecast**
 
   ```bash
-  docker compose run --rm oxygen     src.inference.horizon_forecast     --config configs/pipeline_config.yaml     --processed data/oxygen_processed_full.csv     --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'     --output data/processed/forecast_1week_SubUnit_07.csv
+  docker compose run \
+    --rm \
+    oxygen \
+    src.inference.horizon_forecast \
+      --config configs/pipeline_config.yaml \
+      --processed data/oxygen_processed_full.csv \
+      --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07' \
+      --output data/processed/forecast_1week_SubUnit_07.csv
   ```
 
 This keeps all volume mounts and image configuration in a single declarative file and lets you focus on the module + arguments only.
