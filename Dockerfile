@@ -30,9 +30,4 @@ ENTRYPOINT ["python", "-m"]
 
 # Default command trains + promotes a model using the registry workflow.
 # Override in `docker run` to execute inference / monitoring modules.
-CMD [
-  "src.models.train_and_promote",
-  "--config", "configs/pipeline_config.yaml",
-  "--model-dir", "models",
-  "--registry-dir", "models/registry"
-]
+CMD ["src.models.train_and_promote", "--config", "configs/pipeline_config.yaml", "--model-dir", "models", "--registry-dir", "models/registry"]
