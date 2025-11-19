@@ -177,7 +177,7 @@ python -m src.inference.horizon_forecast --config configs/pipeline_config.yaml -
 
 **Behaviour:**
 
-- Filters processed history for a given `sensor_id`.
+- Filters processed history for a given `sensor_id` (e.g. `'System_10|EquipmentUnit_06|nan'`, `'System_10|EquipmentUnit_05|nan'`, `'System_10|EquipmentUnit_10|SubUnit_07'`, `'System_10|EquipmentUnit_10|SubUnit_08'`, `'System_10|EquipmentUnit_11|nan'`).
 - Iteratively rolls the forecaster forward in **1-minute steps for 7 days**:
   - Uses the last observed/predicted values to compute lag and rolling features.
   - Adds calendar/cyclic features for each forecasted timestamp.
@@ -297,7 +297,7 @@ If the filenames or paths differ, update `configs/pipeline_config.yaml` (the `da
   python -m src.inference.batch_inference --config configs/pipeline_config.yaml --input data/raw/oxygen_sample.csv --output data/processed/oxygen_sample_forecast.csv
   ```
 
-- **1-week horizon forecast for a single sensor**
+- **1-week horizon forecast for a single sensor** (e.g. `'System_10|EquipmentUnit_06|nan'`, `'System_10|EquipmentUnit_05|nan'`, `'System_10|EquipmentUnit_10|SubUnit_07'`, `'System_10|EquipmentUnit_10|SubUnit_08'`, `'System_10|EquipmentUnit_11|nan'`)
 
   ```bash
   python -m src.inference.horizon_forecast --config configs/pipeline_config.yaml --processed data/oxygen_processed_full.csv --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07' --output data/processed/forecast_1week_SubUnit_07.csv
@@ -406,7 +406,7 @@ All example commands below assume you are running from the **project root** and 
 
 ### 8.4 Training via Docker
 
-Equivalent local command:
+Equivalent local command (swap `--sensor_id` for any sensor such as `'System_10|EquipmentUnit_06|nan'`, `'System_10|EquipmentUnit_05|nan'`, `'System_10|EquipmentUnit_10|SubUnit_07'`, `'System_10|EquipmentUnit_10|SubUnit_08'`, `'System_10|EquipmentUnit_11|nan'`):
 
 ```bash
 python -m src.models.train_and_promote --config configs/pipeline_config.yaml --model-dir models --registry-dir models/registry
