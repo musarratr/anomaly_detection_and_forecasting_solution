@@ -25,9 +25,14 @@ ENV PYTHONUNBUFFERED=1
 # Ensure /app is on Python path (usually already is, but explicit is fine)
 ENV PYTHONPATH=/app
 
-# We want to run Python modules by passing module name as first argument
-# e.g. docker run image src.models.train_pipeline --config ...
+# Default entrypoint allows us to run any module via `docker run ... <module> <args>`
 ENTRYPOINT ["python", "-m"]
 
-# Default command (can be overridden in `docker run`)
-CMD ["src.models.train_pipeline", "--config", "configs/pipeline_config.yaml"]
+# Default command trains + promotes a model using the registry workflow.
+# Override in `docker run` to execute inference / monitoring modules.
+CMD [
+  "src.models.train_and_promote",
+  "--config", "configs/pipeline_config.yaml",
+  "--model-dir", "models",
+  "--registry-dir", "models/registry"
+]

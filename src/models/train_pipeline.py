@@ -36,9 +36,7 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def run_training(config_path: str):
-    cfg = load_config(config_path)
-
+def run_training_from_config(cfg: dict):
     data_cfg = cfg["data"]
     anomaly_cfg = cfg["anomaly"]
     forecast_cfg = cfg["forecast"]
@@ -159,6 +157,23 @@ def run_training(config_path: str):
         json.dump(baseline_stats, f, indent=2)
 
     print("Models and baseline stats saved.")
+
+    return {
+        "forecaster": forecaster,
+        "metrics": metrics,
+        "baseline_stats": baseline_stats,
+        "output_paths": {
+            "anomaly_config": out_cfg["anomaly_config_path"],
+            "forecaster": out_cfg["forecaster_path"],
+            "baseline_stats": out_cfg["baseline_stats_path"],
+            "processed_data": data_cfg["processed_path"],
+        },
+    }
+
+
+def run_training(config_path: str):
+    cfg = load_config(config_path)
+    return run_training_from_config(cfg)
 
 
 if __name__ == "__main__":

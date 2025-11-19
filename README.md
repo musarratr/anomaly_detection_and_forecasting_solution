@@ -203,19 +203,20 @@ df_new["time"] = pd.to_datetime(df_new["time"])
 
 monitor_new_data(
     df_scored=df_new,
-    df_with_preds=df_new,
-    baseline_stats_path="models/baseline_stats.json",
+    df_with_preds=df_new,  # same frame, already contains forecasts
+    model_dir="models",
+    registry_dir="models/registry",
     severity_col="severity",
-    value_col="Oxygen[%sat]",
+    value_col="oxygen",
     pred_col="y_pred",
 )
 ```
 
 The monitoring step:
 
-- Compares the **median severity** of the new data vs the baseline.
-- Computes **RMSE** on the new data vs the baseline test RMSE.
-- Prints warnings when severity or RMSE drift beyond thresholds, signalling that **retraining** may be required.
+- Compares the **median severity** of the new data vs the production baseline in `models/baseline_stats.json`.
+- Compares **RMSE** on the new data vs the production test RMSE and returns warnings if it exceeds tolerance.
+- Returns a structured dict that includes the production run id from `models/registry/production.json` when present.
 
 ---
 
@@ -286,7 +287,13 @@ If the filenames or paths differ, update `configs/pipeline_config.yaml` (the `da
 
 ### 6.4 Run pipelines
 
-- **Train / Retrain**
+- **Train + promote (registry-aware)**
+
+  ```bash
+  python -m src.models.train_and_promote --config configs/pipeline_config.yaml --model-dir models --registry-dir models/registry
+  ```
+
+- **Train only (legacy direct run)**
 
   ```bash
   python -m src.models.train_pipeline --config configs/pipeline_config.yaml
@@ -303,6 +310,25 @@ If the filenames or paths differ, update `configs/pipeline_config.yaml` (the `da
   ```bash
   python -m src.inference.horizon_forecast     --config configs/pipeline_config.yaml     --processed data/oxygen_processed_full.csv     --sensor_id 'System_10|EquipmentUnit_10|SubUnit_07'     --output data/processed/forecast_1week_SubUnit_07.csv
   ```
+
+### 6.5 Model registry & promotion (artefact tracking)
+
+- **Where artefacts live**
+  - Production: `models/` (anomaly config, forecaster, baseline stats).
+  - History: `models/registry/runs/<run_id>/` keeps every training run artefact + metadata.
+  - Pointer: `models/registry/production.json` records the latest promoted run id + metric used.
+
+- **Promotion rule**
+  - Uses `test_rmse` in `baseline_stats.json` (lower is better).
+  - First run wins by default; later runs must beat the current production metric.
+
+- **How to run**
+  - Locally: `python -m src.models.train_and_promote --config configs/pipeline_config.yaml --model-dir models --registry-dir models/registry`
+  - Docker: see Section 8 (default `CMD` already runs this).
+
+- **Outputs per run**
+  - `run_info.json` summarising metrics, promotion decision, and paths.
+  - Artefacts saved alongside the metadata for reproducibility.
 
 ---
 
@@ -386,13 +412,13 @@ All example commands below assume you are running from the **project root** and 
 Equivalent local command:
 
 ```bash
-python -m src.models.train_pipeline --config configs/pipeline_config.yaml
+python -m src.models.train_and_promote --config configs/pipeline_config.yaml --model-dir models --registry-dir models/registry
 ```
 
 Run via Docker:
 
 ```bash
-docker run --rm   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   -v "$(pwd)/configs:/app/configs"   cefalo-oxygen:latest   src.models.train_pipeline   --config configs/pipeline_config.yaml
+docker run --rm   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   -v "$(pwd)/configs:/app/configs"   cefalo-oxygen:latest   src.models.train_and_promote   --config configs/pipeline_config.yaml   --model-dir models   --registry-dir models/registry
 ```
 
 This will:
@@ -400,7 +426,8 @@ This will:
 - Read raw data from `data/oxygen.csv`,
 - Train the anomaly detector and global forecaster,
 - Write processed data to `data/oxygen_processed_full.csv`,
-- Save artefacts to `models/` (forecaster, anomaly config, baseline stats).
+- Save artefacts to `models/registry/runs/<run_id>/`,
+- Promote artefacts to `models/` **only if** the new `test_rmse` beats the current baseline.
 
 You can switch to a different config file just by changing the `--config` argument.
 
@@ -454,14 +481,14 @@ You can:
 A simple way to do this in Docker is to override the entrypoint and run a short inline script:
 
 ```bash
-docker run --rm   --entrypoint python   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   cefalo-oxygen:latest   -c "import pandas as pd; from src.evaluation.monitoring import monitor_new_data; df = pd.read_csv('data/processed/oxygen_sample_forecast.csv'); monitor_new_data(df_scored=df, df_with_preds=df, baseline_stats_path='models/baseline_stats.json')"
+docker run --rm   --entrypoint python   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   cefalo-oxygen:latest   -c "import pandas as pd; from src.evaluation.monitoring import monitor_new_data; df = pd.read_csv('data/processed/oxygen_sample_forecast.csv'); out = monitor_new_data(df_scored=df, df_with_preds=df, model_dir='models', registry_dir='models/registry'); print(out)"
 ```
 
 This will:
 
 - Load the new scored + forecasted data,
-- Load `models/baseline_stats.json`,
-- Print severity / RMSE drift warnings to the console.
+- Load the production `models/baseline_stats.json` (and production run id, if present),
+- Return severity / RMSE drift warnings.
 
 If you prefer a cleaner interface, you can add a small CLI wrapper (e.g. `src/evaluation/run_monitoring.py`) and then run it via Docker exactly like the training and inference modules:
 
@@ -485,7 +512,7 @@ services:
       - ./data:/app/data
       - ./models:/app/models
       - ./configs:/app/configs
-    command: ["src.models.train_pipeline", "--config", "configs/pipeline_config.yaml"]
+    command: ["src.models.train_and_promote", "--config", "configs/pipeline_config.yaml", "--model-dir", "models", "--registry-dir", "models/registry"]
 ```
 
 You can run:
@@ -515,4 +542,3 @@ You can run:
   ```
 
 This keeps all volume mounts and image configuration in a single declarative file and lets you focus on the module + arguments only.
-

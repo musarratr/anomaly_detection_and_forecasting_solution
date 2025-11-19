@@ -160,6 +160,9 @@ data/processed/
 
 # Model Files
 models/
+!src/models/
+!src/models/*.py
+!src/models/**/*.py
 
 # Allow README or sample files to be tracked
 !data/.gitkeep

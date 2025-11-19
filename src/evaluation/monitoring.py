@@ -1,21 +1,37 @@
-# src/evaluation/monitoring.py
-
 """
-Simple monitoring script:
+Monitoring helpers aligned with the model registry / promotion flow.
 
-- Compares new severity distribution vs baseline.
-- Compares new RMSE vs baseline.
-- Prints warnings if thresholds are exceeded.
+- Loads production baselines from `models/` (or an override path).
+- Compares new severity distributions and RMSE vs the production baseline.
+- Returns structured warnings instead of printing directly.
 """
+
+from __future__ import annotations
 
 import json
-from typing import Dict
+import os
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
+from src.models.registry import ARTIFACT_NAMES
 
-def load_baseline_stats(path: str) -> Dict:
+
+def load_baseline_stats(
+    model_dir: str | None = "models", baseline_stats_path: str | None = None
+) -> Dict:
+    path = baseline_stats_path or os.path.join(
+        model_dir or "", ARTIFACT_NAMES["baseline_stats"]
+    )
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_production_metadata(registry_dir: str = "models/registry") -> Optional[Dict]:
+    path = os.path.join(registry_dir, "production.json")
+    if not os.path.exists(path):
+        return None
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -23,30 +39,58 @@ def load_baseline_stats(path: str) -> Dict:
 def monitor_new_data(
     df_scored: pd.DataFrame,
     df_with_preds: pd.DataFrame,
-    baseline_stats_path: str,
+    model_dir: str = "models",
+    registry_dir: str = "models/registry",
     severity_col: str = "severity",
-    value_col: str = "Oxygen[%sat]",
+    value_col: str = "oxygen",
     pred_col: str = "y_pred",
-):
-    stats = load_baseline_stats(baseline_stats_path)
+    severity_tol: float = 0.1,
+    rmse_ratio_tol: float = 1.5,
+) -> Dict:
+    """
+    Compare new batches to production baseline.
+
+    Returns a dict with summary stats and warning messages.
+    """
+    stats = load_baseline_stats(model_dir)
+    prod_meta = load_production_metadata(registry_dir)
+
+    warnings: List[str] = []
 
     # Severity shift
     new_sev_median = float(df_scored[severity_col].median())
-    base_sev_median = stats["severity_median"]
+    base_sev_median = float(stats["severity_median"])
     sev_diff = new_sev_median - base_sev_median
+    if sev_diff > severity_tol:
+        warnings.append(
+            "Severity median increased (possible data drift). "
+            f"Δ={sev_diff:+.3f} vs tol {severity_tol}"
+        )
 
     # RMSE shift
     residuals = df_with_preds[value_col] - df_with_preds[pred_col]
     new_rmse = float(np.sqrt(np.mean(residuals**2)))
-    base_rmse = stats["test_rmse"]
+    base_rmse = float(stats["test_rmse"])
+    if new_rmse > base_rmse * rmse_ratio_tol:
+        warnings.append(
+            "RMSE degraded beyond tolerance. "
+            f"new={new_rmse:.3f}, baseline={base_rmse:.3f}, "
+            f"tol_ratio={rmse_ratio_tol}"
+        )
 
-    print(f"Baseline severity median: {base_sev_median:.3f}")
-    print(f"New      severity median: {new_sev_median:.3f} (Δ={sev_diff:+.3f})")
-
-    print(f"Baseline test RMSE: {base_rmse:.3f}")
-    print(f"New      RMSE:      {new_rmse:.3f} (Δ={new_rmse - base_rmse:+.3f})")
-
-    if sev_diff > 0.1:
-        print("[WARN] Severity median increased significantly. Possible data drift.")
-    if new_rmse > base_rmse * 1.5:
-        print("[WARN] RMSE increased >50% over baseline. Consider retraining.")
+    return {
+        "production_run": prod_meta["current_run_id"] if prod_meta else None,
+        "severity": {
+            "baseline_median": base_sev_median,
+            "new_median": new_sev_median,
+            "delta": sev_diff,
+            "tolerance": severity_tol,
+        },
+        "rmse": {
+            "baseline": base_rmse,
+            "new": new_rmse,
+            "ratio": new_rmse / base_rmse if base_rmse else np.inf,
+            "tolerance_ratio": rmse_ratio_tol,
+        },
+        "warnings": warnings,
+    }
