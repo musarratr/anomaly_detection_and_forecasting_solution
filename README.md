@@ -19,7 +19,7 @@ The codebase is fully script-based (train → deploy → monitor → retrain) an
 
 ### 1.1 Anomaly detection (`src/models/anomaly.py`)
 
-The detector now matches `notebooks/oxygen_anomaly_detector_analysis.ipynb` exactly:
+The detector implementation mirrors the logic documented in `notebooks/oxygen_anomaly_detector_analysis.ipynb`:
 
 - **Point anomalies** – rolling mean/std Z-score per sensor (60 min window), scaled with `z_point_low=2`, `z_point_high=5`.
 - **Collective anomalies** – rolling mean(|z|) over 120 minutes, scaled between `collective_low=1`, `collective_high=3`.
