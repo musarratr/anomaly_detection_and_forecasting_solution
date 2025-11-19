@@ -154,9 +154,7 @@ dmypy.json
 ########################################
 
 # Raw & intermediate data (keep only small samples)
-data/raw/
-data/interim/
-data/processed/
+data/
 
 # Model Files
 models/
