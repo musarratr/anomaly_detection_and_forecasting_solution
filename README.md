@@ -237,24 +237,19 @@ These metrics are directly used by the monitoring component to decide whether mo
 
 ## 5. Model artefact hosting
 
-For the assignment, the key artefacts are:
+For the assignment, the key artefacts are provided via a shared Google Drive link as `models.zip`. After downloading:
 
-- `models/anomaly_detector_config.json`
-- `models/forecaster.pkl`
-- `models/baseline_stats.json`
+1. Unzip `models.zip`.
+2. Copy the following files into the local `models/` directory at the project root:
+   - `models/anomaly_detector_config.json`
+   - `models/forecaster.pkl`
+   - `models/baseline_stats.json`
 
-These can be zipped as `models.zip` and uploaded to an external file-sharing service (e.g. Google Drive, OneDrive, or a private S3 bucket) to allow reviewers to:
+These files allow reviewers to:
 
-- Download the **trained anomaly detector configuration**.
-- Load the **trained forecaster** without re-running the full training pipeline.
-- Inspect the **baseline metrics** used for monitoring.
-
-> **Assignment submission pattern**  
-> Upload `models/` as a zip archive and replace the placeholder link below with your actual link:
-
-```text
-Model artefacts (zip): https://drive.google.com/YOUR-MODELS-ZIP-LINK
-```
+- Use the **trained anomaly detector configuration** without re-fitting.
+- Load the **trained forecaster** directly.
+- Inspect the **baseline metrics** used by monitoring.
 
 ---
 
