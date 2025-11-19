@@ -9,15 +9,20 @@ data:
   tz: null                    # e.g. "UTC" if you want to localise
 
 anomaly:
-  rolling_window_minutes: 60
-  point_zscore_threshold: 3.0
-  collective_window_minutes: 60
-  collective_point_threshold: 0.7
-  stuck_window_minutes: 120
-  stuck_std_threshold: 0.05
-  spike_zscore_threshold: 4.0
-  noise_window_minutes: 30
-  noise_std_multiplier: 2.0
+  roll_window_baseline: 60        # rolling mean/std for point anomalies
+  roll_window_collective: 120     # window for collective anomalies
+  roll_window_stuck: 60           # long window for stuck detection
+  roll_window_noise: 60           # window for high-noise detection
+  z_point_low: 2.0
+  z_point_high: 5.0
+  z_ctx_low: 2.0
+  z_ctx_high: 4.0
+  collective_low: 1.0
+  collective_high: 3.0
+  stuck_rel_std_factor: 0.1
+  noise_factor: 1.5
+  spike_z_threshold: 3.0
+  eps: 1.0e-6
   severity_quantile_for_training_cutoff: 0.99
 
 forecast:

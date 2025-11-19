@@ -1,0 +1,18 @@
+# Docker build context pruning
+.git
+__pycache__/
+*.py[cod]
+*.ipynb_checkpoints
+.venv
+.mypy_cache
+.pytest_cache
+
+# Local data and artifacts (mounted at runtime instead)
+data/
+models/
+notebooks/
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo

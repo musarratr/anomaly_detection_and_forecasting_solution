@@ -19,22 +19,17 @@ The codebase is fully script-based (train → deploy → monitor → retrain) an
 
 ### 1.1 Anomaly detection (`src/models/anomaly.py`)
 
-The anomaly detector is a **rule-based, interpretable pipeline** operating per sensor and per minute:
+The detector now matches `notebooks/oxygen_anomaly_detector_analysis.ipynb` exactly:
 
-- **Point anomalies**  
-  Robust rolling Z-score of oxygen vs a rolling median + MAD per sensor.
-- **Collective anomalies**  
-  Rolling fraction of points that exceed a point-anomaly threshold within a time window (persistent spikes).
-- **Contextual anomalies**  
-  Deviation from the typical oxygen level for each *(sensor, hour-of-day)* pair using a median baseline.
+- **Point anomalies** – rolling mean/std Z-score per sensor (60 min window), scaled with `z_point_low=2`, `z_point_high=5`.
+- **Collective anomalies** – rolling mean(|z|) over 120 minutes, scaled between `collective_low=1`, `collective_high=3`.
+- **Contextual anomalies** – deviation from hour-of-day baseline (mean/std per hour), scaled with `z_ctx_low=2`, `z_ctx_high=4`.
 - **Sensor-fault anomalies**  
-  - *Stuck sensor*: very low rolling standard deviation over a long window.  
-  - *Spikes/glitches*: large first differences relative to their standard deviation.  
-  - *High noise*: unusually high short-window variance relative to a longer baseline window.
+  - Stuck: low std vs typical (`stuck_rel_std_factor=0.1`, window 60).  
+  - Spikes: sign-reversing jumps with magnitude > `spike_z_threshold=3`.  
+  - High noise: short-window std >> typical (`noise_factor=1.5`, window 60).
 
-These components are combined into a single **`severity ∈ [0,1]` per minute**, so downstream pipelines can use one scalar anomaly score while still keeping the intermediate diagnostics for debugging.
-
-During training, the pipeline computes a **severity quantile cutoff** (e.g. 0.99) and removes the most severe points from the forecasting training set (anomaly‑aware training).
+Severity is the **max** of the sub-scores (point, collective, contextual, sensor-fault). The training pipeline applies the **severity quantile cutoff** (default 0.99) before forecasting feature engineering, mirroring the TVT notebook cleaning step.
 
 ### 1.2 Forecasting (`src/models/forecaster.py`)
 
@@ -422,6 +417,8 @@ Run via Docker:
 ```bash
 docker run --rm   -v "$(pwd)/data:/app/data"   -v "$(pwd)/models:/app/models"   -v "$(pwd)/configs:/app/configs"   cefalo-oxygen:latest   src.models.train_and_promote   --config configs/pipeline_config.yaml   --model-dir models   --registry-dir models/registry
 ```
+
+> Tip: `.dockerignore` now excludes data/models/notebooks and cache files to keep the build context small and avoid snapshot/export errors.
 
 This will:
 
