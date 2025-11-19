@@ -39,9 +39,8 @@ The forecaster is a **single global model** shared across all sensors:
 - Features:
   - **Lagged values**: e.g. 1, 5, 60 minute lags per sensor.
   - **Rolling statistics**: rolling mean over the last 60 minutes per sensor.
-  - **Calendar/time features**:
-    - `minute_of_day`, `dayofweek`
-    - Cyclic encodings: `sin_time`, `cos_time`, `sin_dow`, `cos_dow`
+- **Calendar/time features**:
+    - Cyclic encodings derived from `minute_of_day` and `dayofweek`: `sin_time`, `cos_time`, `sin_dow`, `cos_dow`
 - Split: time-based **train / validation / test** split using configurable `valid_days` and `test_days`.
 - Hyperparameters: small grid search over `learning_rate` and `max_depth`.
 
