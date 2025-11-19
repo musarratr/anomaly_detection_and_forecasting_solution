@@ -153,9 +153,6 @@ dmypy.json
 # Data & model artifacts (project-specific)
 ########################################
 
-# Raw & intermediate data (keep only small samples)
-data/
-
 # Model Files
 models/
 !src/models/
