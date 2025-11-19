@@ -11,6 +11,7 @@ The codebase is fully script-based (train → deploy → monitor → retrain) an
 
 - `notebooks/oxygen_anomaly_detector_analysis.ipynb`
 - `notebooks/oxygen_forecasting_model_tvt.ipynb`
+- `notebooks/oxygen_forecasting_diagnostics.ipynb` (visual QA: actual vs predicted, residuals, split markers, 1-week horizon overlay)
 
 ---
 
@@ -63,6 +64,7 @@ cefalo-oxygen-anomaly/
 ├─ notebooks/
 │   ├─ oxygen_anomaly_detector_analysis.ipynb  # anomaly detection and analysis
 │   ├─ oxygen_forecasting_model_tvt.ipynb      # forecaster
+│   ├─ oxygen_forecasting_diagnostics.ipynb    # visual QA: actual vs pred, residuals, splits, 1-week overlay
 │   └─ oxygen_eda_notebook.ipynb               # exploratory analysis
 ├─ src/
 │   ├─ data/
