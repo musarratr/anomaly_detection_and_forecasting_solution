@@ -89,6 +89,34 @@ cefalo-oxygen-anomaly/
 
 ---
 
+## Conda environment & Jupyter notebooks
+
+Create the curated Conda environment (includes the full notebook + modeling stack):
+
+```bash
+conda env create -f environment.yml
+conda activate cefalo-oxygen-anomaly
+```
+
+> The `environment.yml` already ships with JupyterLab + IPykernel. If you prefer classic Notebook and do not have it locally, you can `conda install jupyter` (or `pip install jupyter`) inside the activated environment.
+
+Start Jupyter from the repo root:
+
+```bash
+jupyter notebook
+```
+
+Then, in the browser UI:
+
+1. Navigate into the `notebooks/` directory.
+2. Open whichever analysis you want to reproduce, e.g.:
+   - `oxygen_anomaly_detector_analysis.ipynb`
+   - `oxygen_forecasting_model_tvt.ipynb`
+   - `oxygen_forecasting_diagnostics.ipynb`
+3. Run all cells (Kernel → Restart & Run All) to execute the anomaly detection, forecasting TVT workflow, and diagnostics exactly as documented.
+
+---
+
 ## 3. System design: train → deploy → monitor → retrain
 
 ### 3.1 Training / retraining (`src/models/train_pipeline.py`)
