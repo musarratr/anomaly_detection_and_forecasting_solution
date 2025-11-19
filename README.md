@@ -84,6 +84,7 @@ cefalo-oxygen-anomaly/
 │   └─ baseline_stats.json             # baseline metrics used for monitoring
 └─ Dockerfile
 └─ README.md
+└─ environment.yml
 └─ requirements.txt
 ```
 
